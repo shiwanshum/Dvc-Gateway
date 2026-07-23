@@ -1,0 +1,128 @@
+stages:
+  - secret-scan
+  - sast
+  - sca
+  - build
+  - container-scan
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  FRONTEND_IMAGE_TAG: $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
+  BACKEND_IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+
+# -----------------------------------------------------
+# 1. SECRET SCANNING (Gitleaks)
+# -----------------------------------------------------
+gitleaks:
+  stage: secret-scan
+  image: zricethezav/gitleaks:latest
+  script:
+    - gitleaks detect --source . -v
+  allow_failure: true
+
+# -----------------------------------------------------
+# 2. SAST (Static Application Security Testing)
+# -----------------------------------------------------
+gosec:
+  stage: sast
+  image: securego/gosec:latest
+  script:
+    - gosec -fmt junit-xml -out gosec-results.xml ./...
+  artifacts:
+    reports:
+      junit: gosec-results.xml
+  allow_failure: true
+
+eslint:
+  stage: sast
+  image: node:18-alpine
+  script:
+    - cd web/frontend
+    - npm ci
+    - npm run lint
+  allow_failure: true
+
+semgrep:
+  stage: sast
+  image: returntocorp/semgrep
+  script:
+    - semgrep ci
+  allow_failure: true
+
+# -----------------------------------------------------
+# 3. SCA (Software Composition Analysis for dependencies)
+# -----------------------------------------------------
+trivy-fs:
+  stage: sca
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+  allow_failure: true
+
+# -----------------------------------------------------
+# 4. BUILD (Docker Build)
+# -----------------------------------------------------
+build-backend:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $BACKEND_IMAGE_TAG -f deployments/Dockerfile .
+    - docker push $BACKEND_IMAGE_TAG
+
+build-frontend:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $FRONTEND_IMAGE_TAG -f web/frontend/Dockerfile web/frontend
+    - docker push $FRONTEND_IMAGE_TAG
+
+# -----------------------------------------------------
+# 5. CONTAINER SECURITY SCANNING (Trivy Image Scan)
+# -----------------------------------------------------
+trivy-image:
+  stage: container-scan
+  image: aquasec/trivy:latest
+  before_script:
+    - export TRIVY_USERNAME=$CI_REGISTRY_USER
+    - export TRIVY_PASSWORD=$CI_REGISTRY_PASSWORD
+  script:
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL $BACKEND_IMAGE_TAG
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL $FRONTEND_IMAGE_TAG
+  allow_failure: true
+
+# -----------------------------------------------------
+# 6. DEPLOY (To K3s Cluster 172.16.60.190)
+# -----------------------------------------------------
+deploy-k3s:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+    - chmod 600 ~/.kube/config
+  script:
+    # Update image tags in K8s deployment manifests using sed
+    - sed -i "s|image: deployments-gateway:latest|image: $BACKEND_IMAGE_TAG|g" deployments/k8s/06-backend.yaml
+    - sed -i "s|image: deployments-frontend:latest|image: $FRONTEND_IMAGE_TAG|g" deployments/k8s/07-frontend.yaml
+    # Apply standard manifests
+    - kubectl apply -f deployments/k8s/01-config.yaml
+    - kubectl apply -f deployments/k8s/02-secrets.yaml
+    - kubectl apply -f deployments/k8s/03-postgres.yaml
+    - kubectl apply -f deployments/k8s/04-iotdb.yaml
+    - kubectl apply -f deployments/k8s/05-nats.yaml
+    - kubectl apply -f deployments/k8s/06-backend.yaml
+    - kubectl apply -f deployments/k8s/07-frontend.yaml
+  only:
+    - main
+    - master
