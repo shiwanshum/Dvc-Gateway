@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	postgres.InitPostgres() // Initialize DB connection
+	postgres.ConnectDB() // Initialize DB connection
 
 	var plcs []models.MitsubishiPlc
 	if err := postgres.DB.Find(&plcs).Error; err != nil {
@@ -55,7 +55,6 @@ func main() {
 			newTag := tag
 			newTag.ID = uuid.New().String() // Generate new UUID
 			newTag.PlcID = target.ID
-			newTag.PlcIp = target.IpAddress
 			newTag.FacilityName = target.FacilityName
 			newTags = append(newTags, newTag)
 		}
