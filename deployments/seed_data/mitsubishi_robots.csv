@@ -1,0 +1,3 @@
+id,created_at,updated_at,deleted_at,plc_id,name,ip_address,model_id
+6f131fe1-edd6-40e9-a640-73b84c642b5b,2026-06-25 06:36:19.034712+00,2026-06-25 06:36:19.034712+00,,6dcde235-05e8-4f96-94ba-68fc4d0ab9cb,GOTEST_Robot_A,192.169.4.161,
+763ab0ef-6290-49fb-915f-2cb10102059b,2026-06-25 06:36:22.222183+00,2026-06-25 06:36:22.222183+00,,6dcde235-05e8-4f96-94ba-68fc4d0ab9cb,GOTEST_Robot_B,192.169.4.162,

@@ -1,0 +1,116 @@
+version: '3.8'
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dvc-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${HOST_IP}:6432:${POSTGRES_PORT}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    restart: unless-stopped
+    networks:
+      - dvc_network
+
+  iotdb:
+    image: apache/iotdb:1.2.1-standalone
+    container_name: dvc-iotdb
+    ports:
+      - "${HOST_IP}:${IOTDB_PORT}:${IOTDB_PORT}"
+      - "${HOST_IP}:6999:31999"
+    volumes:
+      - iotdb_data:/iotdb/data
+    logging: *default-logging
+    restart: unless-stopped
+    networks:
+      - dvc_network
+
+  nats:
+    image: nats:alpine
+    container_name: dvc-nats
+    ports:
+      - "${HOST_IP}:6022:${NATS_PORT}"
+      - "${HOST_IP}:6023:${NATS_MONITOR_PORT}"
+    command: "-js -m ${NATS_MONITOR_PORT}"
+    volumes:
+      - nats_data:/nats/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${NATS_MONITOR_PORT}/varz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    logging: *default-logging
+    restart: unless-stopped
+    networks:
+      - dvc_network
+
+  gateway:
+    container_name: dvc-backend
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    env_file: ../.env
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      - DB_PORT=${POSTGRES_PORT}
+      - IOTDB_HOST=iotdb
+      - IOTDB_USER=${IOTDB_USER}
+      - IOTDB_PASS=${IOTDB_PASS}
+    ports:
+      - "${HOST_IP}:6080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      iotdb:
+        condition: service_started
+    logging: *default-logging
+    restart: on-failure
+    networks:
+      - dvc_network
+
+  frontend:
+    container_name: dvc-frontend
+    build:
+      context: ../web/frontend
+      dockerfile: Dockerfile
+    env_file: ../.env
+    ports:
+      - "${HOST_IP}:6081:80"
+    depends_on:
+      - gateway
+    logging: *default-logging
+    restart: unless-stopped
+    networks:
+      - dvc_network
+
+volumes:
+  pgdata:
+  iotdb_data:
+  nats_data:
+
+networks:
+  dvc_network:
+    driver: bridge

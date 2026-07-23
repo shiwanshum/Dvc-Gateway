@@ -1,0 +1,2 @@
+id,created_at,updated_at,deleted_at,booth_name,driver,ip_address,port,write_port,network_no,pc_no,facility_name,com_type,rack,slot,alarm_port,maker
+6dcde235-05e8-4f96-94ba-68fc4d0ab9cb,2026-06-22 12:06:52.751518+00,2026-06-25 10:51:29.382031+00,,,iQ-R,192.169.4.152,1033,1039,,,GOTEST,Binary,0,0,0,Mitsubishi

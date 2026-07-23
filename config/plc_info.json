@@ -1,0 +1,63 @@
+{
+  "plcs": [
+    {
+      "Facility name": "PLC_152",
+      "Driver": "iQ-R",
+      "Ip address": "192.169.4.152",
+      "Comtype": "",
+      "Ports": 1039,
+      "Maker": "Mitsubishi",
+      "Id": ""
+    },
+    {
+      "Facility name": "PLC_201",
+      "Driver": "iQ-R",
+      "Ip address": "192.169.4.201",
+      "Comtype": "",
+      "Ports": 1039,
+      "Maker": "Mitsubishi",
+      "Id": ""
+    }
+  ]
+}
+
+
+
+
+
+
+
+
+
+
+
+// {
+//   "plcs": [
+//     {
+//       "Facility name": "PLC_152",
+//       "Driver": "iQ-R",
+//       "Ip address": "192.169.4.152",
+//       // "Comtype": "",
+//       "Rack": 0,
+//       "Slot": 0,
+//       // "Ports": 1026,
+//       "Write port": 1039,
+//       // "Alarm port": 0,
+//       "Maker": "Mitsubishi",
+//       "Id": ""
+//     },
+//     {
+//       "Facility name": "PLC_201",
+//       "Driver": "iQ-R",
+//       "Ip address": "192.169.4.201",
+//       // "Comtype": "",
+//       "Rack": 0,
+//       "Slot": 0,
+//       // "Ports": 1026,
+//       "Write port": 1039,
+//       // "Alarm port": 0,
+//       "Maker": "Mitsubishi",
+//       "Id": ""
+//     }
+//   ]
+// }
