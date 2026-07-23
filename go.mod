@@ -6,6 +6,7 @@ require (
 	github.com/apache/iotdb-client-go v1.3.7
 	github.com/gofiber/fiber/v2 v2.52.14
 	github.com/gofiber/websocket/v2 v2.2.1
+	github.com/google/uuid v1.6.0
 	github.com/nats-io/nats.go v1.52.0
 	golang.org/x/crypto v0.54.0
 	gorm.io/driver/postgres v1.6.0
@@ -16,7 +17,6 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/apache/thrift v0.15.0 // indirect
 	github.com/fasthttp/websocket v1.5.3 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
