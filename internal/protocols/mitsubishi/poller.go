@@ -72,6 +72,8 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 			plc.Port = foundPort
 			postgres.DB.Model(&plc).Update("port", foundPort)
 		}
+		// Give the PLC simulator time to clear the TCP socket from the probe
+		time.Sleep(500 * time.Millisecond)
 	} else {
 		log.Printf("[Poller] no MC responder on %s", plc.IpAddress)
 	}
@@ -249,8 +251,8 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 			default:
 			}
 			if pool == nil {
-				// Re-init pool
-				pool, err = NewConnectionPool(plc.IpAddress, plc.Port, 10)
+				// Re-init pool with size 1 to prevent simulator connection limits
+				pool, err = NewConnectionPool(plc.IpAddress, plc.Port, 1)
 				if err != nil {
 					backoff = time.Duration(math.Min(float64(backoff*2), float64(maxBackoff)))
 					healthJSON, _ := json.Marshal(map[string]interface{}{
