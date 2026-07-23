@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"github.com/program-dg/dvc-gateway/internal/database/postgres"
 	"github.com/program-dg/dvc-gateway/internal/database/postgres/models"
 )
