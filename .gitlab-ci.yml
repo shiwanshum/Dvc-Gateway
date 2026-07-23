@@ -9,9 +9,11 @@ stages:
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
-  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
-  FRONTEND_IMAGE_TAG: $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
-  BACKEND_IMAGE_TAG: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+  # Harbor Registry Configuration
+  HARBOR_HOST: "harbor.local" # Replace with actual Harbor URL/IP
+  HARBOR_PROJECT: "dvc-gateway"
+  FRONTEND_IMAGE_TAG: $HARBOR_HOST/$HARBOR_PROJECT/frontend:$CI_COMMIT_SHORT_SHA
+  BACKEND_IMAGE_TAG: $HARBOR_HOST/$HARBOR_PROJECT/backend:$CI_COMMIT_SHORT_SHA
 
 # -----------------------------------------------------
 # 1. SECRET SCANNING (Gitleaks)
@@ -71,7 +73,7 @@ build-backend:
   services:
     - docker:24.0.5-dind
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker login -u $HARBOR_USERNAME -p $HARBOR_PASSWORD $HARBOR_HOST
   script:
     - docker build -t $BACKEND_IMAGE_TAG -f deployments/Dockerfile .
     - docker push $BACKEND_IMAGE_TAG
@@ -82,7 +84,7 @@ build-frontend:
   services:
     - docker:24.0.5-dind
   before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker login -u $HARBOR_USERNAME -p $HARBOR_PASSWORD $HARBOR_HOST
   script:
     - docker build -t $FRONTEND_IMAGE_TAG -f web/frontend/Dockerfile web/frontend
     - docker push $FRONTEND_IMAGE_TAG
@@ -94,8 +96,8 @@ trivy-image:
   stage: container-scan
   image: aquasec/trivy:latest
   before_script:
-    - export TRIVY_USERNAME=$CI_REGISTRY_USER
-    - export TRIVY_PASSWORD=$CI_REGISTRY_PASSWORD
+    - export TRIVY_USERNAME=$HARBOR_USERNAME
+    - export TRIVY_PASSWORD=$HARBOR_PASSWORD
   script:
     - trivy image --exit-code 0 --severity HIGH,CRITICAL $BACKEND_IMAGE_TAG
     - trivy image --exit-code 0 --severity HIGH,CRITICAL $FRONTEND_IMAGE_TAG
