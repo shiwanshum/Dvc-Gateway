@@ -38,6 +38,7 @@
             <th>Port</th>
             <th>Facility</th>
             <th>Driver</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -45,15 +46,23 @@
           <tr v-for="plc in plcs" :key="plc.id">
             <td>{{ plc.ip_address }}</td>
             <td>{{ plc.port }}</td>
-            <td><span class="badge">{{ plc.facility_name }}</span></td>
+            <td><span class="badge badge-blue">{{ plc.facility_name }}</span></td>
             <td>{{ plc.driver }}</td>
             <td>
+              <span class="badge" :class="getHealthStatus(plc.id) === 'online' ? 'badge-green' : 'badge-red'">
+                {{ getHealthStatus(plc.id) }}
+              </span>
+            </td>
+            <td>
+              <button class="btn-primary btn-sm" @click="scanPlc(plc.id)" style="margin-right:8px;" title="Scan Ports & Reconnect">
+                <ion-icon name="refresh-outline" style="vertical-align: middle;"></ion-icon> Scan
+              </button>
               <button class="btn-warning btn-sm" @click="openEditForm(plc)">Edit</button>
               <button class="btn-danger btn-sm" @click="deletePlc(plc.id)" style="margin-left:8px;">Delete</button>
             </td>
           </tr>
           <tr v-if="plcs.length === 0">
-            <td colspan="5" class="empty-state">No PLCs found.</td>
+            <td colspan="6" class="empty-state">No PLCs found.</td>
           </tr>
         </tbody>
       </table>
@@ -76,6 +85,7 @@ const plcs = ref([]);
 const showForm = ref(false);
 const isEditing = ref(false);
 const formPlc = ref({ id: null, ip_address: '', port: null, facility_name: '', driver: 'mitsubishi_mc' });
+const health = ref([]);
 
 // Pagination & Search
 const page = ref(1);
@@ -102,6 +112,20 @@ const fetchPlcs = async (targetPage = page.value) => {
   } catch (err) {
     console.error(err);
   }
+};
+
+const fetchHealth = async () => {
+  try {
+    const res = await axios.get(`http://${window.location.hostname}:6080/api/health/plcs`);
+    health.value = res.data || [];
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const getHealthStatus = (id) => {
+  const h = health.value.find(h => h.id === id);
+  return h ? h.status : 'unknown';
 };
 
 const openAddForm = () => {
@@ -139,6 +163,22 @@ const deletePlc = async (id) => {
     console.error(err);
   }
 };
+const scanPlc = async (id) => {
+  try {
+    const res = await axios.post(`http://${window.location.hostname}:6080/api/plcs/${id}/scan`);
+    alert(res.data.message || 'Scan initiated');
+    fetchPlcs();
+  } catch (err) {
+    console.error(err);
+    alert('Failed to trigger scan');
+  }
+};
 
-onMounted(() => fetchPlcs(1));
+let healthInterval;
+
+onMounted(() => {
+  fetchPlcs(1);
+  fetchHealth();
+  healthInterval = setInterval(fetchHealth, 5000);
+});
 </script>

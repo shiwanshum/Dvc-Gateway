@@ -1,6 +1,7 @@
 package mitsubishi
 
 import (
+	"context"
 	nats_go "github.com/nats-io/nats.go"
 	nats_client "github.com/program-dg/dvc-gateway/internal/nats"
 
@@ -51,7 +52,7 @@ var (
 	plcStats      PollerStats
 	prevReadOps   uint64
 	prevWriteOps  uint64
-	fallbackPorts = []int{1033, 1037, 1040}
+	fallbackPorts = []int{1026, 1033, 1037, 1039, 1040}
 )
 
 type PLCHealth struct {
@@ -63,7 +64,7 @@ type PLCHealth struct {
 var PlcHealthMap sync.Map
 
 // Poll connects to the PLC and starts continuous data extraction
-func Poll(plc models.MitsubishiPlc) {
+func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 	// Proactive port auto-scan on startup
 	if foundPort, err := findMCPort(plc.IpAddress, plc.Port); err == nil {
 		if foundPort != plc.Port {
@@ -227,6 +228,8 @@ func Poll(plc models.MitsubishiPlc) {
 						processWriteBatch(pool, batch)
 						batch = batch[:0]
 					}
+				case <-ctx.Done():
+					return
 				case <-ticker.C:
 					if len(batch) > 0 {
 						processWriteBatch(pool, batch)
@@ -237,6 +240,14 @@ func Poll(plc models.MitsubishiPlc) {
 		}()
 
 		for {
+			select {
+			case <-ctx.Done():
+				if pool != nil {
+					pool.Close()
+				}
+				return
+			default:
+			}
 			if pool == nil {
 				// Re-init pool
 				pool, err = NewConnectionPool(plc.IpAddress, plc.Port, 10)

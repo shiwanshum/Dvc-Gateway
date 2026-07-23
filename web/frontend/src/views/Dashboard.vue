@@ -55,7 +55,12 @@
       <div v-for="plc in health" :key="plc.id" class="plc-card" :class="plc.status">
         <div class="plc-header">
           <h3>{{ plc.name || 'Unknown PLC' }}</h3>
-          <span class="status-badge">{{ plc.status }}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="icon-btn" @click="scanPlc(plc.id)" title="Scan Ports & Reconnect" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer;">
+              <ion-icon name="refresh-outline" style="font-size: 1.2rem;"></ion-icon>
+            </button>
+            <span class="status-badge">{{ plc.status }}</span>
+          </div>
         </div>
         <div class="plc-body">
           <p><strong>IP:</strong> {{ plc.ip_address }}</p>
@@ -202,17 +207,18 @@ const rttChartOption = computed(() => {
 
     return {
         color: colors,
+        title: {
+            text: 'Read/Write RTT Trend',
+            subtext: selectedChartPlc.value.includes('Global') ? 'Global Poller RTT' : 'PLC RTT',
+            textStyle: { color: '#ccc' }
+        },
         tooltip: {
             trigger: 'axis',
-            axisPointer: { type: 'cross', label: { backgroundColor: '#6a7985' } },
-            backgroundColor: 'rgba(30, 30, 35, 0.9)',
-            borderColor: '#333',
-            textStyle: { color: '#eee' }
+            axisPointer: { type: 'cross' }
         },
         toolbox: {
             show: true,
-            feature: { saveAsImage: {} },
-            iconStyle: { borderColor: '#ccc' }
+            feature: { saveAsImage: {} }
         },
         grid: {
             top: 40, bottom: 40, left: '3%', right: '4%', containLabel: true
@@ -228,15 +234,15 @@ const rttChartOption = computed(() => {
                 type: 'category',
                 boundaryGap: false,
                 axisTick: { alignWithLabel: true },
-                axisLine: { lineStyle: { color: '#aaa' } },
+                axisLine: { lineStyle: { color: '#666' } },
                 data: times
             }
         ],
         yAxis: [
             {
                 type: 'value',
-                axisLabel: { formatter: '{value} ms', color: '#aaa' },
-                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+                axisLabel: { formatter: '{value} ms', color: '#666' },
+                splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
                 min: 0,
                 max: function(value) {
                     return Math.max(10, Math.ceil(value.max * 1.2));
@@ -265,6 +271,17 @@ function trimHistory() {
         rttHistory.value = rttHistory.value.slice(-maxEntries * 2);
     }
 }
+
+const scanPlc = async (id) => {
+  try {
+    const res = await axios.post(`http://${window.location.hostname}:6080/api/plcs/${id}/scan`);
+    alert(res.data.message || 'Scan initiated');
+    fetchPLCHealth();
+  } catch (err) {
+    console.error(err);
+    alert('Failed to trigger scan');
+  }
+};
 
 const fetchTags = async () => {
   try {

@@ -1,10 +1,12 @@
 package orchestrator
 
 import (
+	"context"
 	"log"
 	"sync"
 
 	"github.com/program-dg/dvc-gateway/internal/database/postgres/models"
+	"github.com/program-dg/dvc-gateway/internal/database/postgres"
 	"github.com/program-dg/dvc-gateway/internal/protocols/mitsubishi"
 	"github.com/program-dg/dvc-gateway/internal/protocols/rockwell"
 	"github.com/program-dg/dvc-gateway/internal/protocols/siemens"
@@ -13,14 +15,24 @@ import (
 )
 
 var (
-	activePLCs sync.Map // Map of ID to running goroutine status
+	activePLCs sync.Map // Map of ID to context.CancelFunc
 )
 
 // StartManager boots up all configured PLCs from the database
 func StartManager() {
-	// For now, assume we fetch this list from Postgres
-	// e.g. plcs := postgres.GetAllPLCs()
 	log.Println("[Orchestrator] Starting dynamic PLC manager...")
+
+	var plcs []models.MitsubishiPlc
+	// Fetch all PLCs from the database (assuming postgres.DB is initialized)
+	// We need to import the postgres package to use postgres.DB
+	if err := postgres.DB.Find(&plcs).Error; err != nil {
+		log.Printf("[Orchestrator] Error fetching PLCs from DB: %v", err)
+		return
+	}
+
+	for _, plc := range plcs {
+		AddPLC(plc)
+	}
 }
 
 // AddPLC dynamically starts polling for a new PLC config
@@ -32,13 +44,15 @@ func AddPLC(config models.MitsubishiPlc) error {
 		return nil
 	}
 
-	activePLCs.Store(config.ID, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	activePLCs.Store(config.ID, cancel)
 
 	// Spawns the Make-specific poller
 	go func() {
+		defer activePLCs.Delete(config.ID)
 		switch config.Maker {
 		case "mitsubishi", "Mitsubishi", "MITSUBISHI":
-			mitsubishi.Poll(config)
+			mitsubishi.Poll(ctx, config)
 		case "rockwell", "Rockwell", "ROCKWELL":
 			rockwell.Poll(config)
 		case "siemens", "Siemens", "SIEMENS":
@@ -49,9 +63,8 @@ func AddPLC(config models.MitsubishiPlc) error {
 			allen_bradley.Poll(config)
 		default:
 			// Fallback to mitsubishi if unknown
-			mitsubishi.Poll(config)
+			mitsubishi.Poll(ctx, config)
 		}
-		activePLCs.Delete(config.ID)
 	}()
 
 	return nil
@@ -60,6 +73,17 @@ func AddPLC(config models.MitsubishiPlc) error {
 // RemovePLC gracefully stops polling for a PLC
 func RemovePLC(plcID string, make string) error {
 	log.Printf("[Orchestrator] Stopping PLC ID: %s", plcID)
-	// In a real implementation, we'd send a context cancellation or stop signal
+	if cancelFunc, exists := activePLCs.Load(plcID); exists {
+		if cancel, ok := cancelFunc.(context.CancelFunc); ok {
+			cancel()
+		}
+		activePLCs.Delete(plcID)
+	}
 	return nil
+}
+
+// RestartPLC stops and then starts a PLC poller to force a reconnect or port scan
+func RestartPLC(config models.MitsubishiPlc) error {
+	RemovePLC(config.ID, config.Maker)
+	return AddPLC(config)
 }

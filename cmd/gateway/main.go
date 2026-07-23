@@ -19,6 +19,8 @@ func main() {
 	fmt.Println("Starting Dvc-Gateway with Make-Wise Structure...")
 
 	postgres.ConnectDB()
+	postgres.SeedRoles()
+	postgres.SeedPLCs()
 
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {

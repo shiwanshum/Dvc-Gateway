@@ -84,3 +84,17 @@ func DeletePLCHandler(c *fiber.Ctx) error {
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+func ScanPLCHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var plc models.MitsubishiPlc
+	if err := postgres.DB.First(&plc, "id = ?", id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "PLC not found"})
+	}
+	
+	err := orchestrator.RestartPLC(plc)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"status": "scanning", "message": "Port scan and reconnect triggered."})
+}

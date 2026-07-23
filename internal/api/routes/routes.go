@@ -26,6 +26,7 @@ func SetupRoutes(app *fiber.App) {
 	plcs.Post("/", handlers.AddPLCHandler)
 	plcs.Put("/:id", handlers.UpdatePLCHandler)
 	plcs.Delete("/:id", handlers.DeletePLCHandler)
+	plcs.Post("/:id/scan", handlers.ScanPLCHandler)
 
 	tags := api.Group("/tags")
 	tags.Get("/", handlers.GetTagsHandler)
