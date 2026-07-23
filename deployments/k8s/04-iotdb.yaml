@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: iotdb
+  namespace: default
+spec:
+  serviceName: "iotdb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iotdb
+  template:
+    metadata:
+      labels:
+        app: iotdb
+    spec:
+      containers:
+      - name: iotdb
+        image: apache/iotdb:1.2.1-standalone
+        ports:
+        - containerPort: 6667
+        - containerPort: 31999
+        volumeMounts:
+        - name: iotdb-data
+          mountPath: /iotdb/data
+  volumeClaimTemplates:
+  - metadata:
+      name: iotdb-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iotdb
+  namespace: default
+spec:
+  ports:
+  - port: 6667
+    targetPort: 6667
+    name: rpc
+  - port: 31999
+    targetPort: 31999
+    name: datanode
+  selector:
+    app: iotdb
