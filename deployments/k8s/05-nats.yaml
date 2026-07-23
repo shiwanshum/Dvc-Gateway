@@ -23,6 +23,13 @@ spec:
           name: client
         - containerPort: 8222
           name: monitor
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
         volumeMounts:
         - name: nats-data
           mountPath: /nats/data
