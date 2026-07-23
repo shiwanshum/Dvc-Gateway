@@ -20,6 +20,13 @@ spec:
         ports:
         - containerPort: 5432
           name: postgres
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
         env:
         - name: POSTGRES_USER
           valueFrom:
