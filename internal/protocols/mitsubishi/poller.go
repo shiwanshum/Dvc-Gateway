@@ -61,7 +61,8 @@ type PLCHealth struct {
 	LastSeen  time.Time
 }
 
-var PlcHealthMap sync.Map
+var PlcHealthMap sync.Map // map[string]PLCHealth
+var PlcPools sync.Map // map[string]*ConnectionPool
 
 // Poll connects to the PLC and starts continuous data extraction
 func Poll(ctx context.Context, plc models.MitsubishiPlc) {
@@ -143,7 +144,8 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 		var err error
 		activePort := plc.Port
 
-		for _, p := range fallbackPorts {
+		portsToTry := append([]int{activePort}, fallbackPorts...)
+		for _, p := range portsToTry {
 			rpc, loopErr := newPlcConn(plc.IpAddress, p)
 			if loopErr == nil {
 				if p != plc.Port {
@@ -162,9 +164,11 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 			log.Printf("[Poller] initial connect error on all ports: %v", err)
 		}
 		
-		pool, err = NewConnectionPool(plc.IpAddress, activePort, 10)
+		pool, err = NewConnectionPool(plc.IpAddress, activePort, 1)
 		if err != nil {
 			log.Printf("[Poller] failed to init connection pool: %v", err)
+		} else {
+			PlcPools.Store(plc.ID, pool)
 		}
 
 		var backoff time.Duration = 50 * time.Millisecond
@@ -244,6 +248,7 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 		for {
 			select {
 			case <-ctx.Done():
+				PlcPools.Delete(plc.ID)
 				if pool != nil {
 					pool.Close()
 				}
@@ -263,9 +268,11 @@ func Poll(ctx context.Context, plc models.MitsubishiPlc) {
 					PlcHealthMap.Store(plc.ID, PLCHealth{Status: "offline", LatencyMS: 0, LastSeen: time.Now()})
 					time.Sleep(backoff)
 					continue
+				} else {
+					PlcPools.Store(plc.ID, pool)
 				}
-				backoff = 50 * time.Millisecond
 			}
+			backoff = 50 * time.Millisecond
 
 			// NATS Write Subscriber (Setup once per connection)
 			if !natsSubscribed && nats_client.GetConn() != nil {

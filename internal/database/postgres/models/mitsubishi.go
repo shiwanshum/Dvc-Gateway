@@ -22,7 +22,7 @@ type MitsubishiPlc struct {
 	Rack         int    `json:"rack"`
 	Slot         int    `json:"slot"`
 	Port         int    `json:"port"`
-	WritePort    int    `json:"write_port"`
+
 	AlarmPort    int    `json:"alarm_port"`
 	Maker        string `json:"maker"`
 }

@@ -23,7 +23,7 @@ type PLCConfig struct {
 	Rack         int    `json:"Rack"`
 	Slot         int    `json:"Slot"`
 	Ports      int    `json:"Ports"`
-	WritePort  int    `json:"Write port"`
+
 	AlarmPort  int    `json:"Alarm port"`
 	Maker string `json:"Maker"`
 	ID    string `json:"Id"`
@@ -103,7 +103,7 @@ func SeedPLCs() {
 				Slot:         p.Slot,
 
 				Port: p.Ports,
-				WritePort: p.WritePort,
+
 				AlarmPort: p.AlarmPort,
 
 				Maker: p.Maker,
@@ -124,7 +124,7 @@ func SeedPLCs() {
 			existing.Rack = p.Rack
 			existing.Slot = p.Slot
 			existing.Port = p.Ports
-			existing.WritePort = p.WritePort
+
 			existing.AlarmPort = p.AlarmPort
 			existing.Maker = p.Maker
 

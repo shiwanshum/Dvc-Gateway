@@ -22,7 +22,7 @@ func GetTagsHandler(c *fiber.Ctx) error {
 
 	offset := (page - 1) * limit
 
-	query := postgres.DB.Model(&models.MitsubishiTagList{})
+	query := postgres.DB.Model(&models.MitsubishiTagList{}).Order("tag_address ASC")
 
 	if search != "" {
 		query = query.Where("tag_name LIKE ?", "%"+search+"%")

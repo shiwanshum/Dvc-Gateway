@@ -205,7 +205,15 @@ checkEC:
 	return vals, nil
 }
 
-var scanPorts = []int{1025, 1026, 1024, 2000, 5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5010, 3000, 4000, 5555, 6000}
+var scanPorts = []int{
+	502, 3000, 4000, 4840,
+	1023, 1024, 1025, 1026, 1027, 1028, 1029, 1030,
+	1031, 1032, 1033, 1034, 1035, 1036, 1037, 1038, 1039, 1040,
+	1089, 1090, 1091, 1092, 1093,
+	2000, 5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5010,
+	5555, 6000, 9600,
+	20000, 20001,
+}
 
 // findMCPort scans common ports on host for an MC Protocol responder.
 // Tries preferredPort first; if it fails, scans scanPorts list.
@@ -272,8 +280,9 @@ func ProbeMCPort(host string, port int) bool {
 		return false
 	}
 	// Check complete code at bytes 9-10 (0x0000 = no error)
+	// MC Protocol 3E uses little-endian byte order
 	if len(resp) >= 11 {
-		ec := int(resp[9])<<8 | int(resp[10])
+		ec := int(resp[9]) | int(resp[10])<<8
 		return ec == 0
 	}
 	return false

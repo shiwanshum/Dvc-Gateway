@@ -94,11 +94,18 @@ func ScanPLCHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "PLC not found"})
 	}
 	
-	err := orchestrator.RestartPLC(plc)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	ports := mitsubishi.ScanAllMCPorts(plc.IpAddress)
+	go orchestrator.RestartPLC(plc)
+	return c.JSON(fiber.Map{"status": "scanning", "ports": ports, "message": "Port scan and reconnect triggered."})
+}
+
+func ScanPortsByIPHandler(c *fiber.Ctx) error {
+	ip := c.Query("ip")
+	if ip == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "IP address is required"})
 	}
-	return c.JSON(fiber.Map{"status": "scanning", "message": "Port scan and reconnect triggered."})
+	ports := mitsubishi.ScanAllMCPorts(ip)
+	return c.JSON(fiber.Map{"open_ports": ports})
 }
 
 type ManualReadWriteReq struct {
@@ -120,11 +127,25 @@ func ManualReadHandler(c *fiber.Ctx) error {
 	}
 
 	start := time.Now()
-	conn, err := mitsubishi.NewPlcConn(plc.IpAddress, plc.Port)
+	var conn *mitsubishi.PlcConn
+	var err error
+	var pool *mitsubishi.ConnectionPool
+	if p, ok := mitsubishi.PlcPools.Load(plc.ID); ok {
+		pool = p.(*mitsubishi.ConnectionPool)
+		conn, err = pool.Acquire()
+	} else {
+		conn, err = mitsubishi.NewPlcConn(plc.IpAddress, plc.Port)
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "rtt_ms": 0})
 	}
-	defer conn.Close()
+	defer func() {
+		if pool != nil {
+			pool.Release(conn)
+		} else {
+			conn.Close()
+		}
+	}()
 
 	var val int
 	if req.IsBit {
@@ -161,11 +182,25 @@ func ManualWriteHandler(c *fiber.Ctx) error {
 	}
 
 	start := time.Now()
-	conn, err := mitsubishi.NewPlcConn(plc.IpAddress, plc.Port)
+	var conn *mitsubishi.PlcConn
+	var err error
+	var pool *mitsubishi.ConnectionPool
+	if p, ok := mitsubishi.PlcPools.Load(plc.ID); ok {
+		pool = p.(*mitsubishi.ConnectionPool)
+		conn, err = pool.Acquire()
+	} else {
+		conn, err = mitsubishi.NewPlcConn(plc.IpAddress, plc.Port)
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error(), "rtt_ms": 0})
 	}
-	defer conn.Close()
+	defer func() {
+		if pool != nil {
+			pool.Release(conn)
+		} else {
+			conn.Close()
+		}
+	}()
 
 	if req.IsBit {
 		err = conn.WriteSingleBit(req.Device, req.Offset, req.Value)
@@ -179,4 +214,83 @@ func ManualWriteHandler(c *fiber.Ctx) error {
 	}
 	
 	return c.JSON(fiber.Map{"status": "success", "rtt_ms": rtt})
+}
+
+func BulkStressTestHandler(c *fiber.Ctx) error {
+	plcID := c.Query("plc_id")
+	prefix := c.Query("prefix")
+	startStr := c.Query("start")
+	countStr := c.Query("count")
+	valStr := c.Query("value")
+	op := c.Query("op")
+
+	start, err := strconv.Atoi(startStr)
+	if err != nil {
+		start = 0
+	}
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		count = 1
+	}
+
+	var plc models.MitsubishiPlc
+	if err := postgres.DB.First(&plc, "id = ?", plcID).Error; err != nil {
+		return c.JSON(fiber.Map{"error": "PLC not found"})
+	}
+
+	var conn *mitsubishi.PlcConn
+	var pool *mitsubishi.ConnectionPool
+	if p, ok := mitsubishi.PlcPools.Load(plc.ID); ok {
+		pool = p.(*mitsubishi.ConnectionPool)
+		conn, err = pool.Acquire()
+	} else {
+		conn, err = mitsubishi.NewPlcConn(plc.IpAddress, plc.Port)
+	}
+	if err != nil {
+		return c.JSON(fiber.Map{"error": err.Error()})
+	}
+	defer func() {
+		if pool != nil {
+			pool.Release(conn)
+		} else {
+			conn.Close()
+		}
+	}()
+
+	var readLatency, writeLatency float64
+
+	if op == "read" || op == "both" {
+		t0 := time.Now()
+		frame := mitsubishi.BuildReadWordFrame(prefix, start, count)
+		_, err := conn.DoReadWords(frame, count)
+		readLatency = float64(time.Since(t0).Microseconds()) / 1000.0
+		if err != nil {
+			return c.JSON(fiber.Map{"error": "Read error: " + err.Error()})
+		}
+	}
+
+	if op == "write" || op == "both" {
+		t0 := time.Now()
+		if intVal, err := strconv.Atoi(valStr); err == nil {
+			arr := make([]int, count)
+			for i := 0; i < count; i++ {
+				arr[i] = intVal
+			}
+			err = conn.WriteBatchWords(prefix, start, arr)
+			if err != nil {
+				return c.JSON(fiber.Map{"error": "Write error: " + err.Error()})
+			}
+		} else {
+			err = conn.WriteString(prefix, start, valStr)
+			if err != nil {
+				return c.JSON(fiber.Map{"error": "Write string error: " + err.Error()})
+			}
+		}
+		writeLatency = float64(time.Since(t0).Microseconds()) / 1000.0
+	}
+
+	return c.JSON(fiber.Map{
+		"read_latency_ms":  readLatency,
+		"write_latency_ms": writeLatency,
+	})
 }

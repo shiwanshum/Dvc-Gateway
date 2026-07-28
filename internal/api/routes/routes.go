@@ -29,6 +29,7 @@ func SetupRoutes(app *fiber.App) {
 	plcs.Post("/:id/scan", handlers.ScanPLCHandler)
 	plcs.Post("/:id/manual-read", handlers.ManualReadHandler)
 	plcs.Post("/:id/manual-write", handlers.ManualWriteHandler)
+	plcs.Get("/scan-ports", handlers.ScanPortsByIPHandler)
 
 	tags := api.Group("/tags")
 	tags.Get("/", handlers.GetTagsHandler)
@@ -38,5 +39,6 @@ func SetupRoutes(app *fiber.App) {
 
 	// Health and Stats Routes
 	api.Get("/health/plcs", handlers.GetPLCHealth)
+	api.Get("/rtt-test/v2/bulk-test", handlers.BulkStressTestHandler)
 	api.Get("/poller-stats", handlers.GetPollerStats)
 }
