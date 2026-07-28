@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
     container_name: dvc-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -25,19 +25,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    logging: *default-logging
-    restart: unless-stopped
-    networks:
-      - dvc_network
-
-  iotdb:
-    image: apache/iotdb:1.2.1-standalone
-    container_name: dvc-iotdb
-    ports:
-      - "${HOST_IP}:${IOTDB_PORT}:${IOTDB_PORT}"
-      - "${HOST_IP}:6999:31999"
-    volumes:
-      - iotdb_data:/iotdb/data
     logging: *default-logging
     restart: unless-stopped
     networks:
@@ -74,9 +61,6 @@ services:
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_NAME=${POSTGRES_DB}
       - DB_PORT=${POSTGRES_PORT}
-      - IOTDB_HOST=iotdb
-      - IOTDB_USER=${IOTDB_USER}
-      - IOTDB_PASS=${IOTDB_PASS}
     ports:
       - "${HOST_IP}:6080:8080"
     depends_on:
@@ -84,8 +68,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
-      iotdb:
-        condition: service_started
     logging: *default-logging
     restart: on-failure
     networks:
@@ -108,7 +90,6 @@ services:
 
 volumes:
   pgdata:
-  iotdb_data:
   nats_data:
 
 networks:

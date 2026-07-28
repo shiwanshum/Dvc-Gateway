@@ -1,0 +1,8 @@
+schemaVersion: 2.0.0
+metadataTest:
+  exposedPorts:
+    - "80"
+fileExistenceTests:
+  - name: "Nginx config exists"
+    path: "/etc/nginx/nginx.conf"
+    shouldExist: true

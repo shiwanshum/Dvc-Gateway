@@ -8,9 +8,6 @@ data:
   DB_PORT: "5432"
   DB_NAME: "gatewaydb"
   DB_USER: "admin"
-  IOTDB_HOST: "iotdb"
-  IOTDB_PORT: "6667"
-  IOTDB_USER: "root"
   NATS_PORT: "4222"
   NATS_MONITOR_PORT: "8222"
 ---
@@ -24,5 +21,20 @@ data:
     #!/bin/bash
     set -e
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-        -- Add any custom Postgres initialization here
+        -- Enable TimescaleDB extension
+        CREATE EXTENSION IF NOT EXISTS timescaledb;
+        
+        -- Create isolated telemetry schema
+        CREATE SCHEMA IF NOT EXISTS telemetry;
+        
+        -- Create the timeseries table
+        CREATE TABLE IF NOT EXISTS telemetry.plc_data (
+            time TIMESTAMPTZ NOT NULL,
+            plc_ip TEXT NOT NULL,
+            tag_name TEXT NOT NULL,
+            value DOUBLE PRECISION NOT NULL
+        );
+        
+        -- Convert to hypertable partitioned by time
+        SELECT create_hypertable('telemetry.plc_data', by_range('time'), if_not_exists => TRUE);
     EOSQL

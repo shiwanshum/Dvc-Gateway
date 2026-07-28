@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	
 	"github.com/program-dg/dvc-gateway/internal/api/routes"
-	"github.com/program-dg/dvc-gateway/internal/database/iotdb"
+	"github.com/program-dg/dvc-gateway/internal/database/timeseries"
 	"github.com/program-dg/dvc-gateway/internal/database/postgres"
 	"github.com/program-dg/dvc-gateway/internal/nats"
 	"github.com/program-dg/dvc-gateway/internal/orchestrator"
@@ -30,21 +30,8 @@ func main() {
 		log.Println("WARNING: NATS not available yet")
 	}
 
-	iotdbHost := os.Getenv("IOTDB_HOST")
-	if iotdbHost == "" {
-		iotdbHost = "iotdb" // Use docker service name
-	}
-	iotdbUser := os.Getenv("IOTDB_USER")
-	if iotdbUser == "" {
-		iotdbUser = "root"
-	}
-	iotdbPass := os.Getenv("IOTDB_PASS")
-	if iotdbPass == "" {
-		iotdbPass = "root"
-	}
-	if err := iotdb.InitIoTDB(iotdbHost, "6667", iotdbUser, iotdbPass); err == nil {
-		go iotdb.StartNATSLogConsumer()
-	}
+	// Start NATS logger for TimescaleDB
+	go timeseries.StartNATSLogConsumer()
 
 	go orchestrator.StartManager()
 

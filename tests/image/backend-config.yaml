@@ -1,0 +1,12 @@
+schemaVersion: 2.0.0
+metadataTest:
+  exposedPorts:
+    - "8080"
+  labels:
+    - key: "maintainer"
+      value: "program-dg"
+fileExistenceTests:
+  - name: "Gateway binary exists"
+    path: "/app/gateway"
+    shouldExist: true
+    permissions: "-rwxr-xr-x"
