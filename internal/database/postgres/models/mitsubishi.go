@@ -7,9 +7,9 @@ import (
 
 type UUIDTimeStampedModelMixin struct {
 	ID        string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime;default:CURRENT_TIMESTAMP"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 type MitsubishiPlc struct {
