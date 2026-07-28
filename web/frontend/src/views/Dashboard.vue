@@ -210,7 +210,7 @@ const rttChartOption = computed(() => {
         title: {
             text: 'Read/Write RTT Trend',
             subtext: selectedChartPlc.value.includes('Global') ? 'Global Poller RTT' : 'PLC RTT',
-            textStyle: { color: '#ccc' }
+            textStyle: { color: '#0f172a' }
         },
         tooltip: {
             trigger: 'axis',
@@ -225,7 +225,7 @@ const rttChartOption = computed(() => {
         },
         legend: {
             data: legendData,
-            textStyle: { color: '#ccc' },
+            textStyle: { color: '#475569' },
             type: 'scroll',
             top: 0
         },
@@ -234,14 +234,15 @@ const rttChartOption = computed(() => {
                 type: 'category',
                 boundaryGap: false,
                 axisTick: { alignWithLabel: true },
-                axisLine: { lineStyle: { color: '#666' } },
+                axisLine: { lineStyle: { color: '#94a3b8' } },
+                axisLabel: { color: '#475569' },
                 data: times
             }
         ],
         yAxis: [
             {
                 type: 'value',
-                axisLabel: { formatter: '{value} ms', color: '#666' },
+                axisLabel: { formatter: '{value} ms', color: '#475569' },
                 splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
                 min: 0,
                 max: function(value) {
@@ -384,7 +385,7 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-view {
-  padding: 20px;
+  padding: 24px;
 }
 
 .header-section {
@@ -394,24 +395,37 @@ onUnmounted(() => {
   margin-bottom: 24px;
 }
 
+.header-section h1 {
+  color: var(--text-primary, #0f172a);
+  font-weight: 800;
+  margin: 0;
+  font-size: 1.8rem;
+}
+
 .status-indicator {
   padding: 8px 16px;
   border-radius: 20px;
-  background: #333;
-  color: #aaa;
-  font-weight: 500;
+  background: #e2e8f0;
+  color: #64748b;
+  font-weight: 600;
   transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
 }
 .status-indicator.connected {
-  background: rgba(46, 213, 115, 0.2);
-  color: #2ed573;
-  box-shadow: 0 0 10px rgba(46, 213, 115, 0.2);
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
 }
 
 .section-header {
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid var(--border-color, #bae6fd);
   padding-bottom: 8px;
+}
+.section-header h2 {
+  color: var(--text-primary, #0f172a);
+  font-weight: 700;
+  margin: 0;
 }
 
 /* Stats Row */
@@ -422,54 +436,65 @@ onUnmounted(() => {
   margin-bottom: 24px;
 }
 .stat-card {
-  background: rgba(30, 30, 35, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 16px;
+  padding: 20px;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.1);
 }
 .stat-card h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: #aaa;
+  color: var(--text-secondary, #475569);
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-weight: 600;
 }
 .stat-val {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #fff;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
   margin-top: 8px;
 }
 .stat-val .unit {
   font-size: 1rem;
-  color: #888;
+  color: #94a3b8;
+  font-weight: 500;
 }
-.stat-card.success .stat-val { color: #2ed573; }
-.stat-card.error .stat-val { color: #ff4757; }
+.stat-card.success .stat-val { color: #10b981; }
+.stat-card.error .stat-val { color: #ef4444; }
 
 /* Charts */
 .charts-row {
   margin-bottom: 30px;
 }
 .chart-container {
-  background: rgba(30, 30, 35, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.06);
+  backdrop-filter: blur(12px);
 }
 .chart-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .chart-header h2 {
   margin: 0;
-  font-size: 1.2rem;
-  color: #fff;
+  font-size: 1.3rem;
+  color: var(--text-primary, #0f172a);
+  font-weight: 700;
 }
 .plc-selector {
   display: flex;
@@ -477,23 +502,24 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .plc-chip {
-  padding: 6px 12px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #aaa;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
   font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 .plc-chip:hover {
-  background: rgba(255,255,255,0.1);
+  background: #e2e8f0;
 }
 .plc-chip.active {
   background: linear-gradient(135deg, #0ea5e9, #38bdf8);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 4px 12px rgba(56,189,248,0.35);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 .chart {
   height: 400px;
@@ -504,20 +530,25 @@ onUnmounted(() => {
 .plcs-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 .plc-card {
-  background: rgba(30, 30, 35, 0.8);
-  border-left: 4px solid #777;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  border-left: 4px solid #cbd5e1;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease;
+}
+.plc-card:hover {
+  transform: translateY(-2px);
 }
 .plc-card.online {
-  border-left-color: #2ed573;
+  border-left-color: #10b981;
 }
 .plc-card.offline {
-  border-left-color: #ff4757;
+  border-left-color: #ef4444;
 }
 .plc-header {
   display: flex;
@@ -527,33 +558,36 @@ onUnmounted(() => {
 }
 .plc-header h3 {
   margin: 0;
-  font-size: 1.1rem;
-  color: #fff;
+  font-size: 1.15rem;
+  color: var(--text-primary, #0f172a);
+  font-weight: 700;
 }
 .status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   font-size: 0.75rem;
-  font-weight: bold;
+  font-weight: 700;
   text-transform: uppercase;
 }
 .plc-card.online .status-badge {
-  background: rgba(46, 213, 115, 0.2);
-  color: #2ed573;
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
 }
 .plc-card.offline .status-badge {
-  background: rgba(255, 71, 87, 0.2);
-  color: #ff4757;
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
 }
 .plc-body p {
-  margin: 4px 0;
-  font-size: 0.9rem;
-  color: #ccc;
+  margin: 6px 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #475569);
+  font-weight: 500;
 }
 .plc-body .latency {
-  font-family: monospace;
-  color: #38bdf8;
-  font-size: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-blue, #0ea5e9);
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 /* Tags Grid */
@@ -563,19 +597,21 @@ onUnmounted(() => {
   gap: 24px;
 }
 .facility-card {
-  background: rgba(30, 30, 35, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(14, 165, 233, 0.15);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.05);
+  backdrop-filter: blur(12px);
 }
 .facility-card h2 {
   margin-top: 0;
-  margin-bottom: 16px;
-  color: #fff;
+  margin-bottom: 20px;
+  color: var(--text-primary, #0f172a);
   text-transform: capitalize;
-  font-size: 1.2rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 1.3rem;
+  font-weight: 800;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.15);
   padding-bottom: 12px;
 }
 .tag-list {
@@ -587,28 +623,37 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 12px 16px;
-  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  padding: 14px 18px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+.tag-item:hover {
+  background: #f1f5f9;
 }
 .tag-name {
-  color: #ddd;
+  color: var(--text-secondary, #475569);
   font-size: 0.95rem;
+  font-weight: 600;
 }
 .tag-value {
-  font-family: monospace;
-  font-size: 1.1rem;
-  font-weight: bold;
-  color: #3498db;
-  transition: color 0.3s ease;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent-blue, #0ea5e9);
+  transition: all 0.3s ease;
 }
 .tag-value.updated {
-  color: #f1c40f;
+  color: #0284c7;
+  transform: scale(1.1);
+  text-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
 }
 .no-tags {
-  color: #777;
+  color: #94a3b8;
   font-style: italic;
   text-align: center;
-  padding: 20px 0;
+  padding: 24px 0;
+  font-weight: 500;
 }
 </style>
