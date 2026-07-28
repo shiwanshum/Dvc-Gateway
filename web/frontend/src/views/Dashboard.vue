@@ -1,386 +1,331 @@
 <template>
-  <div class="dashboard-view">
-    <div class="header-section">
-      <h1>Real-Time Facility & PLC Health Dashboard</h1>
-      <div class="status-indicator" :class="{ connected: wsConnected }">
-        {{ wsConnected ? 'Live Data Connected' : 'Connecting...' }}
-      </div>
-    </div>
-    
-    <!-- Top Stats Row -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <h3>Total PLCs</h3>
-        <div class="stat-val">{{ health.length }}</div>
-      </div>
-      <div class="stat-card success">
-        <h3>Online</h3>
-        <div class="stat-val">{{ health.filter(h => h.status === 'online').length }}</div>
-      </div>
-      <div class="stat-card error">
-        <h3>Offline</h3>
-        <div class="stat-val">{{ health.filter(h => h.status === 'offline').length }}</div>
-      </div>
-      <div class="stat-card">
-        <h3>Read Latency (Global)</h3>
-        <div class="stat-val">{{ pollerStats.read_latency_ms || 0 }} <span class="unit">ms</span></div>
-      </div>
-      <div class="stat-card">
-        <h3>Write Latency (Global)</h3>
-        <div class="stat-val">{{ pollerStats.write_latency_ms || 0 }} <span class="unit">ms</span></div>
-      </div>
-    </div>
+    <div class="dashboard-view">
+        <div class="header-section">
+            <h1>Gateway Dashboard</h1>
+            <div class="status-indicator" :class="{ connected: isConnected }">
+                {{ isConnected ? '● Live' : '○ Reconnecting' }}
+            </div>
+        </div>
 
-    <!-- Charts Row -->
-    <div class="charts-row">
-      <div class="chart-container">
-        <div class="chart-header">
-          <h2>PLC Performance Trend (RTT)</h2>
-          <div class="plc-selector">
-            <span class="plc-chip" :class="{ active: selectedChartPlc.includes('Global') }" @click="toggleChartPlc('Global')">Global Stats</span>
-            <span v-for="plc in health" :key="plc.id" class="plc-chip" :class="{ active: selectedChartPlc.includes(plc.id) }" @click="toggleChartPlc(plc.id)">
-              {{ plc.name || plc.ip_address }}
-            </span>
-          </div>
+        <!-- Global Stats -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <h3>Poller Read Ops</h3>
+                <div class="stat-val">{{ (pollerStats.read_ops || 0).toLocaleString() }} <span class="unit">ops</span></div>
+            </div>
+            <div class="stat-card">
+                <h3>Poller Write Ops</h3>
+                <div class="stat-val">{{ (pollerStats.write_ops || 0).toLocaleString() }} <span class="unit">ops</span></div>
+            </div>
+            <div class="stat-card success">
+                <h3>Avg Read RTT</h3>
+                <div class="stat-val">{{ pollerStats.read_latency_ms || 0 }} <span class="unit">ms</span></div>
+            </div>
+            <div class="stat-card error">
+                <h3>Avg Write RTT</h3>
+                <div class="stat-val">{{ pollerStats.write_latency_ms || 0 }} <span class="unit">ms</span></div>
+            </div>
         </div>
-        <v-chart class="chart" :option="rttChartOption" autoresize />
-      </div>
-    </div>
 
-    <!-- PLCs Status Grid -->
-    <div class="section-header">
-      <h2>PLC Connection Status</h2>
-    </div>
-    <div class="plcs-grid">
-      <div v-for="plc in health" :key="plc.id" class="plc-card" :class="plc.status">
-        <div class="plc-header">
-          <h3>{{ plc.name || 'Unknown PLC' }}</h3>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <button class="icon-btn" @click="scanPlc(plc.id)" title="Scan Ports & Reconnect" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer;">
-              <ion-icon name="refresh-outline" style="font-size: 1.2rem;"></ion-icon>
-            </button>
-            <span class="status-badge">{{ plc.status }}</span>
-          </div>
-        </div>
-        <div class="plc-body">
-          <p><strong>IP:</strong> {{ plc.ip_address }}</p>
-          <p><strong>Latency:</strong> <span class="latency">{{ plc.latency_ms.toFixed(1) }} ms</span></p>
-        </div>
-      </div>
-    </div>
+        <!-- Manual Read/Write Tester Panel -->
+        <div class="tester-panel glass-card">
+            <div class="panel-header">
+                <h2>Manual Tag Tester</h2>
+                <span class="badge">Direct PLC Connection</span>
+            </div>
+            <div class="tester-controls">
+                <select class="input-3d" v-model="testPlcId" @change="filterTagsForPlc">
+                    <option value="">Select PLC...</option>
+                    <option v-for="plc in plcs" :key="plc.id" :value="plc.id">{{ plc.ip_address }} ({{ plc.facility_name }})</option>
+                </select>
 
-    <!-- Tags by Facility Grid -->
-    <div class="section-header" style="margin-top: 30px;">
-      <h2>Live Facility Tags</h2>
-    </div>
-    <div class="facilities-grid">
-      <div v-for="(facilityTags, facilityName) in tagsByFacility" :key="facilityName" class="facility-card">
-        <h2>{{ facilityName || 'Unassigned Facility' }}</h2>
-        <div class="tag-list">
-          <div v-for="tag in facilityTags" :key="tag.id" class="tag-item">
-            <span class="tag-name">{{ tag.tag_name }} ({{ tag.tag_address }})</span>
-            <span class="tag-value" :class="{ 'updated': highlightTags[tag.id] }">
-              {{ tagValues[tag.id] !== undefined ? tagValues[tag.id] : '--' }}
-            </span>
-          </div>
-          <div v-if="facilityTags.length === 0" class="no-tags">
-            No tags configured for this facility.
-          </div>
+                <select class="input-3d" v-model="testTagId">
+                    <option value="">Select Tag Address...</option>
+                    <option v-for="tag in filteredTags" :key="tag.id" :value="tag.id">
+                        {{ tag.tag_name }} [{{ tag.device }}{{ tag.offset }}]
+                    </option>
+                </select>
+
+                <input type="number" class="input-3d value-input" v-model="testValue" placeholder="Value (0)">
+
+                <button class="btn-3d" @click="manualRead" :disabled="!testTagId">Read</button>
+                <button class="btn-3d write" @click="manualWrite" :disabled="!testTagId">Write</button>
+            </div>
+            <div class="tester-result" v-if="testResult">
+                <span>Value: <strong>{{ testResult.value }}</strong></span>
+                <span class="rtt">RTT: {{ testResult.rtt_ms }} ms</span>
+            </div>
         </div>
-      </div>
+
+        <!-- ECharts Trend -->
+        <div class="charts-row">
+            <div class="chart-container glass-card">
+                <div class="chart-header">
+                    <h2>Latency Trends</h2>
+                    <div class="plc-selector">
+                        <button class="plc-chip" :class="{ active: selectedChartPlc === 'Global' }" @click="selectedChartPlc = 'Global'">Global</button>
+                        <button class="plc-chip" :class="{ active: selectedChartPlc === 'Manual' }" @click="selectedChartPlc = 'Manual'">Manual Tests</button>
+                    </div>
+                </div>
+                <v-chart class="chart" :option="rttChartOption" autoresize />
+            </div>
+        </div>
+
+        <!-- Tag Monitoring Grid -->
+        <div class="section-header">
+            <h2>Live Facility Monitoring</h2>
+        </div>
+        <div class="facilities-grid">
+            <div class="facility-card glass-card" v-for="(tags, facility) in tagsByFacility" :key="facility">
+                <h2>{{ facility }}</h2>
+                <div class="tag-list">
+                    <div class="tag-item" v-for="tag in tags" :key="tag.id">
+                        <span class="tag-name">{{ tag.tag_name }} [{{tag.device}}{{tag.offset}}]</span>
+                        <span class="tag-value" :class="{ updated: tag.isUpdated }">{{ tag.value }}</span>
+                    </div>
+                    <div v-if="tags.length === 0" class="no-tags">No tags mapped.</div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
-import axios from 'axios';
-import { use } from 'echarts/core';
-import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart, BarChart } from 'echarts/charts';
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  ToolboxComponent,
-  GridComponent,
-  MarkAreaComponent,
-  VisualMapComponent
-} from 'echarts/components';
-import VChart from 'vue-echarts';
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, TitleComponent, LegendComponent, ToolboxComponent } from 'echarts/components'
+import VChart from 'vue-echarts'
 
-use([
-  CanvasRenderer,
-  LineChart,
-  BarChart,
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  ToolboxComponent,
-  GridComponent,
-  MarkAreaComponent,
-  VisualMapComponent
-]);
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent, ToolboxComponent])
 
-// ----------------- STATE -----------------
-const tags = ref([]);
-const tagValues = ref({});
-const highlightTags = ref({});
-const wsConnected = ref(false);
-let ws = null;
+const health = ref([])
+const pollerStats = ref({})
+const isConnected = ref(false)
+let ws = null
+let pollInterval = null
 
-const health = ref([]);
-const pollerStats = ref({ read_latency_ms: 0, write_latency_ms: 0, read_ops: 0, write_ops: 0, error_count: 0 });
+// Real-time tagging state
+const allTags = ref([])
+const plcs = ref([])
+const tagsByFacility = ref({})
 
-const rttHistory = ref([]);
-const selectedChartPlc = ref(['Global']);
-const rttHistoryLimit = ref(50);
-const rttTimeRange = ref(11000); // 11 Seconds default
+// Manual Tester State
+const testPlcId = ref("")
+const testTagId = ref("")
+const testValue = ref(0)
+const filteredTags = ref([])
+const testResult = ref(null)
 
-let pollingInterval = null;
-
-// ----------------- COMPUTED -----------------
-const tagsByFacility = computed(() => {
-  const grouped = {
-    'booth': [],
-    'pretreatment': [],
-    'oven': []
-  };
-  
-  tags.value.forEach(tag => {
-    const fac = (tag.fac_name || '').toLowerCase();
-    if (grouped[fac]) {
-      grouped[fac].push(tag);
-    } else {
-      if (!grouped['Other']) grouped['Other'] = [];
-      grouped['Other'].push(tag);
-    }
-  });
-  return grouped;
-});
+// ECharts State
+const selectedChartPlc = ref('Global')
+const globalHistory = ref({ times: [], readRTT: [], writeRTT: [] })
+const manualHistory = ref({ times: [], rtt: [] })
 
 const rttChartOption = computed(() => {
-    const now = Date.now();
-    const colors = ['#5470C6', '#EE6666', '#91CC75', '#FAC858', '#73C0DE', '#3BA272', '#FC8452', '#9A60B4'];
-    
-    let series = [];
-    let legendData = [];
-    let times = [];
-    let colorIdx = 0;
+    let times, series, legendData, colors, subtext
 
-    selectedChartPlc.value.forEach(selId => {
-        let hist = rttHistory.value.filter(h => h.plc_id === selId && (now - h.time.getTime() <= rttTimeRange.value));
-        hist = hist.slice(-rttHistoryLimit.value);
-
-        if (times.length === 0 && hist.length > 0) {
-            times = hist.map(h => {
-                const d = h.time;
-                return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
-            });
-        }
-
-        let label = selId === 'Global' ? 'Global' : (health.value.find(p => p.id === selId)?.ip_address || selId);
-
-        legendData.push(`${label} Read`);
-        legendData.push(`${label} Write`);
-
-        series.push({
-            name: `${label} Read`,
-            type: 'line',
-            smooth: true,
-            emphasis: { focus: 'series' },
-            itemStyle: { color: colors[colorIdx % colors.length] },
-            data: hist.map(h => h.read)
-        });
-
-        series.push({
-            name: `${label} Write`,
-            type: 'line',
-            smooth: true,
-            emphasis: { focus: 'series' },
-            itemStyle: { color: colors[(colorIdx+1) % colors.length] },
-            data: hist.map(h => h.write)
-        });
-
-        colorIdx += 2;
-    });
+    if (selectedChartPlc.value === 'Global') {
+        times = globalHistory.value.times
+        legendData = ['Global Read RTT', 'Global Write RTT']
+        colors = ['#10b981', '#38bdf8']
+        subtext = 'Poller Aggregated Average'
+        series = [
+            { name: 'Global Read RTT', type: 'line', data: globalHistory.value.readRTT, smooth: true, lineStyle: { width: 3 } },
+            { name: 'Global Write RTT', type: 'line', data: globalHistory.value.writeRTT, smooth: true, lineStyle: { width: 3 } }
+        ]
+    } else {
+        times = manualHistory.value.times
+        legendData = ['Manual RTT']
+        colors = ['#f59e0b']
+        subtext = 'Manual Read/Write Tests'
+        series = [
+            { name: 'Manual RTT', type: 'line', data: manualHistory.value.rtt, smooth: true, symbolSize: 8, lineStyle: { width: 3, type: 'dashed' } }
+        ]
+    }
 
     return {
         color: colors,
+        backgroundColor: 'transparent',
         title: {
-            text: 'Read/Write RTT Trend',
-            subtext: selectedChartPlc.value.includes('Global') ? 'Global Poller RTT' : 'PLC RTT',
-            textStyle: { color: '#0f172a' }
+            text: 'Latency Trend (ms)',
+            subtext: subtext,
+            textStyle: { color: '#f8fafc' },
+            subtextStyle: { color: '#94a3b8' }
         },
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: { type: 'cross' }
-        },
-        toolbox: {
-            show: true,
-            feature: { saveAsImage: {} }
-        },
-        grid: {
-            top: 40, bottom: 40, left: '3%', right: '4%', containLabel: true
-        },
+        tooltip: { trigger: 'axis' },
+        grid: { top: 60, bottom: 40, left: '5%', right: '4%', containLabel: true },
         legend: {
             data: legendData,
-            textStyle: { color: '#475569' },
-            type: 'scroll',
+            textStyle: { color: '#f8fafc' },
             top: 0
         },
         xAxis: [
             {
                 type: 'category',
                 boundaryGap: false,
-                axisTick: { alignWithLabel: true },
-                axisLine: { lineStyle: { color: '#94a3b8' } },
-                axisLabel: { color: '#475569' },
+                axisLine: { lineStyle: { color: '#334155' } },
+                axisLabel: { color: '#94a3b8' },
                 data: times
             }
         ],
         yAxis: [
             {
                 type: 'value',
-                axisLabel: { formatter: '{value} ms', color: '#475569' },
-                splitLine: { lineStyle: { color: 'rgba(0,0,0,0.05)' } },
+                axisLabel: { formatter: '{value} ms', color: '#94a3b8' },
+                splitLine: { lineStyle: { color: '#334155' } },
                 min: 0,
-                max: function(value) {
-                    return Math.max(10, Math.ceil(value.max * 1.2));
-                }
+                max: function(value) { return Math.max(10, Math.ceil(value.max * 1.2)) }
             }
         ],
         series: series
-    };
-});
+    }
+})
 
-// ----------------- METHODS -----------------
-function toggleChartPlc(id) {
-    const idx = selectedChartPlc.value.indexOf(id);
-    if (idx > -1) {
-        if (selectedChartPlc.value.length > 1) {
-            selectedChartPlc.value.splice(idx, 1);
-        }
-    } else {
-        selectedChartPlc.value.push(id);
+function pushGlobalHistory(stats) {
+    const timeStr = new Date().toLocaleTimeString([], { hour12: false })
+    globalHistory.value.times.push(timeStr)
+    globalHistory.value.readRTT.push(stats.read_latency_ms || 0)
+    globalHistory.value.writeRTT.push(stats.write_latency_ms || 0)
+
+    if (globalHistory.value.times.length > 50) {
+        globalHistory.value.times.shift()
+        globalHistory.value.readRTT.shift()
+        globalHistory.value.writeRTT.shift()
     }
 }
 
-function trimHistory() {
-    const maxEntries = 5000;
-    if (rttHistory.value.length > maxEntries * 5) {
-        rttHistory.value = rttHistory.value.slice(-maxEntries * 2);
+function pushManualHistory(rtt) {
+    const timeStr = new Date().toLocaleTimeString([], { hour12: false })
+    manualHistory.value.times.push(timeStr)
+    manualHistory.value.rtt.push(rtt)
+
+    if (manualHistory.value.times.length > 50) {
+        manualHistory.value.times.shift()
+        manualHistory.value.rtt.shift()
     }
 }
 
-const scanPlc = async (id) => {
-  try {
-    const res = await axios.post(`http://${window.location.hostname}:6080/api/plcs/${id}/scan`);
-    alert(res.data.message || 'Scan initiated');
-    fetchPLCHealth();
-  } catch (err) {
-    console.error(err);
-    alert('Failed to trigger scan');
-  }
-};
-
-const fetchTags = async () => {
-  try {
-    const res = await axios.get(`http://${window.location.hostname}:6080/api/tags?limit=1000`);
-    tags.value = res.data.data || [];
-  } catch (err) {
-    console.error('Failed to fetch tags', err);
-  }
-};
-
-const fetchPLCHealth = async () => {
+async function fetchPlcsAndTags() {
     try {
-        const res = await axios.get(`http://${window.location.hostname}:6080/api/health/plcs`);
-        health.value = res.data || [];
-        const now = new Date();
-        (res.data || []).forEach(p => {
-            rttHistory.value.push({ time: now, read: p.latency_ms || 0, write: 0, plc_id: p.id, ops: 0 });
-        });
-        trimHistory();
-    } catch (err) {
-        console.error('Failed to fetch PLC health', err);
-    }
-};
+        const pRes = await fetch('/api/plcs')
+        const pData = await pRes.json()
+        plcs.value = pData.data || []
 
-const fetchPollerStats = async () => {
-    try {
-        const res = await axios.get(`http://${window.location.hostname}:6080/api/poller-stats`);
-        pollerStats.value = res.data || {};
-        rttHistory.value.push({ 
-          time: new Date(), 
-          read: res.data.read_latency_ms || 0, 
-          write: res.data.write_latency_ms || 0, 
-          plc_id: 'Global', 
-          ops: res.data.read_ops || 0 
-        });
-        trimHistory();
-    } catch (err) {
-        console.error('Failed to fetch Poller Stats', err);
-    }
-};
-
-const connectWs = () => {
-  ws = new WebSocket(`ws://${window.location.hostname}:6080/ws`);
-  
-  ws.onopen = () => {
-    wsConnected.value = true;
-  };
-  
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.registers && data.tag_ids) {
-        const updates = {};
-        for (const [key, value] of Object.entries(data.registers)) {
-          const tagId = data.tag_ids[key];
-          if (tagId) {
-            updates[tagId] = value;
-            
-            // Highlight animation
-            highlightTags.value[tagId] = true;
-            setTimeout(() => {
-              highlightTags.value[tagId] = false;
-            }, 300);
-          }
-        }
-        tagValues.value = { ...tagValues.value, ...updates };
-      }
+        const tRes = await fetch('/api/tags')
+        const tData = await tRes.json()
+        allTags.value = tData.data || []
+        
+        // Group by facility
+        const grouped = {}
+        allTags.value.forEach(tag => {
+            if (!grouped[tag.facility]) grouped[tag.facility] = []
+            grouped[tag.facility].push({ ...tag, value: 0, isUpdated: false })
+        })
+        tagsByFacility.value = grouped
     } catch (e) {
-      console.error('Error parsing WS message', e);
+        console.error(e)
     }
-  };
-  
-  ws.onclose = () => {
-    wsConnected.value = false;
-    setTimeout(connectWs, 3000); // Reconnect after 3s
-  };
-};
+}
 
-// ----------------- LIFECYCLE -----------------
+function filterTagsForPlc() {
+    testTagId.value = ""
+    testResult.value = null
+    if (!testPlcId.value) {
+        filteredTags.value = []
+        return
+    }
+    filteredTags.value = allTags.value.filter(t => t.plc_id == testPlcId.value)
+}
+
+async function manualRead() {
+    const tag = allTags.value.find(t => t.id == testTagId.value)
+    if (!tag) return
+    try {
+        const res = await fetch(`/api/plcs/${testPlcId.value}/manual-read`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                device: tag.device,
+                offset: tag.offset,
+                is_bit: tag.tag_type === 'bit'
+            })
+        })
+        const data = await res.json()
+        testResult.value = { value: data.value, rtt_ms: data.rtt_ms }
+        pushManualHistory(data.rtt_ms)
+        selectedChartPlc.value = 'Manual'
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+async function manualWrite() {
+    const tag = allTags.value.find(t => t.id == testTagId.value)
+    if (!tag) return
+    try {
+        const res = await fetch(`/api/plcs/${testPlcId.value}/manual-write`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                device: tag.device,
+                offset: tag.offset,
+                is_bit: tag.tag_type === 'bit',
+                value: parseInt(testValue.value, 10) || 0
+            })
+        })
+        const data = await res.json()
+        testResult.value = { value: 'Written ' + testValue.value, rtt_ms: data.rtt_ms }
+        pushManualHistory(data.rtt_ms)
+        selectedChartPlc.value = 'Manual'
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+async function fetchStats() {
+    try {
+        const res = await fetch('/api/poller-stats')
+        const data = await res.json()
+        pollerStats.value = data
+        pushGlobalHistory(data)
+    } catch (err) {
+        console.error('Stats err:', err)
+    }
+}
+
+function connectWS() {
+    ws = new WebSocket(`ws://${window.location.host}/ws`)
+    ws.onopen = () => { isConnected.value = true }
+    ws.onclose = () => { isConnected.value = false; setTimeout(connectWS, 3000) }
+    ws.onmessage = (msg) => {
+        const data = JSON.parse(msg.data)
+        const fac = tagsByFacility.value[data.facility]
+        if (fac) {
+            const tag = fac.find(t => t.tag_name === data.tag_name)
+            if (tag) {
+                tag.value = data.value
+                tag.isUpdated = true
+                setTimeout(() => { tag.isUpdated = false }, 400) // Neon flash effect
+            }
+        }
+    }
+}
+
 onMounted(() => {
-  fetchTags();
-  connectWs();
-  
-  // Initial Fetch
-  fetchPLCHealth();
-  fetchPollerStats();
-  
-  // Start Polling every 2 seconds
-  pollingInterval = setInterval(() => {
-    fetchPLCHealth();
-    fetchPollerStats();
-  }, 2000);
-});
+    fetchPlcsAndTags()
+    fetchStats()
+    pollInterval = setInterval(() => {
+        fetchStats()
+    }, 2000)
+    connectWS()
+})
 
 onUnmounted(() => {
-  if (ws) ws.close();
-  if (pollingInterval) clearInterval(pollingInterval);
-});
+    clearInterval(pollInterval)
+    if (ws) ws.close()
+})
 </script>
 
 <style scoped>
@@ -396,7 +341,7 @@ onUnmounted(() => {
 }
 
 .header-section h1 {
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   font-weight: 800;
   margin: 0;
   font-size: 1.8rem;
@@ -405,27 +350,38 @@ onUnmounted(() => {
 .status-indicator {
   padding: 8px 16px;
   border-radius: 20px;
-  background: #e2e8f0;
-  color: #64748b;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
 }
 .status-indicator.connected {
-  background: rgba(16, 185, 129, 0.15);
-  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--accent-neon);
+  color: var(--accent-neon);
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
 }
 
 .section-header {
   margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-color, #bae6fd);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
 }
 .section-header h2 {
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   font-weight: 700;
   margin: 0;
+}
+
+/* Glass Cards */
+.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* Stats Row */
@@ -436,24 +392,23 @@ onUnmounted(() => {
   margin-bottom: 24px;
 }
 .stat-card {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(14, 165, 233, 0.15);
-  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   padding: 20px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(14, 165, 233, 0.1);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
 }
 .stat-card h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: 600;
@@ -461,28 +416,77 @@ onUnmounted(() => {
 .stat-val {
   font-size: 2.2rem;
   font-weight: 800;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   margin-top: 8px;
 }
 .stat-val .unit {
   font-size: 1rem;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-weight: 500;
 }
-.stat-card.success .stat-val { color: #10b981; }
-.stat-card.error .stat-val { color: #ef4444; }
+.stat-card.success .stat-val { color: var(--accent-neon); }
+.stat-card.error .stat-val { color: var(--accent-blue); }
+
+/* Tester Panel */
+.tester-panel {
+  padding: 24px;
+  margin-bottom: 30px;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--accent-neon);
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+.badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-neon);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  border: 1px solid var(--accent-neon);
+}
+.tester-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.value-input {
+  width: 120px;
+}
+.tester-result {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  border-left: 4px solid var(--accent-neon);
+  display: flex;
+  gap: 24px;
+  font-size: 1.1rem;
+}
+.tester-result strong {
+  color: var(--accent-neon);
+}
+.tester-result .rtt {
+  color: var(--accent-blue);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: bold;
+}
 
 /* Charts */
 .charts-row {
   margin-bottom: 30px;
 }
 .chart-container {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(14, 165, 233, 0.15);
-  border-radius: 20px;
   padding: 24px;
-  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.06);
-  backdrop-filter: blur(12px);
 }
 .chart-header {
   display: flex;
@@ -493,101 +497,37 @@ onUnmounted(() => {
 .chart-header h2 {
   margin: 0;
   font-size: 1.3rem;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   font-weight: 700;
 }
 .plc-selector {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
 }
 .plc-chip {
   padding: 6px 14px;
   border-radius: 20px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 .plc-chip:hover {
-  background: #e2e8f0;
+  background: var(--border-color);
+  color: var(--text-primary);
 }
 .plc-chip.active {
-  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-  color: #fff;
-  border-color: transparent;
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-neon);
+  border-color: var(--accent-neon);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
 }
 .chart {
   height: 400px;
   width: 100%;
-}
-
-/* PLCs Grid */
-.plcs-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-}
-.plc-card {
-  background: rgba(255, 255, 255, 0.85);
-  border-left: 4px solid #cbd5e1;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.05);
-  backdrop-filter: blur(12px);
-  transition: transform 0.2s ease;
-}
-.plc-card:hover {
-  transform: translateY(-2px);
-}
-.plc-card.online {
-  border-left-color: #10b981;
-}
-.plc-card.offline {
-  border-left-color: #ef4444;
-}
-.plc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.plc-header h3 {
-  margin: 0;
-  font-size: 1.15rem;
-  color: var(--text-primary, #0f172a);
-  font-weight: 700;
-}
-.status-badge {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.plc-card.online .status-badge {
-  background: rgba(16, 185, 129, 0.15);
-  color: #059669;
-}
-.plc-card.offline .status-badge {
-  background: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
-}
-.plc-body p {
-  margin: 6px 0;
-  font-size: 0.95rem;
-  color: var(--text-secondary, #475569);
-  font-weight: 500;
-}
-.plc-body .latency {
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--accent-blue, #0ea5e9);
-  font-size: 1.05rem;
-  font-weight: 700;
 }
 
 /* Tags Grid */
@@ -597,21 +537,16 @@ onUnmounted(() => {
   gap: 24px;
 }
 .facility-card {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(14, 165, 233, 0.15);
-  border-radius: 20px;
   padding: 24px;
-  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.05);
-  backdrop-filter: blur(12px);
 }
 .facility-card h2 {
   margin-top: 0;
   margin-bottom: 20px;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   text-transform: capitalize;
   font-size: 1.3rem;
   font-weight: 800;
-  border-bottom: 1px solid rgba(14, 165, 233, 0.15);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 12px;
 }
 .tag-list {
@@ -623,17 +558,18 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
   padding: 14px 18px;
   border-radius: 12px;
   transition: all 0.3s ease;
 }
 .tag-item:hover {
-  background: #f1f5f9;
+  border-color: var(--accent-neon);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
 }
 .tag-name {
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary);
   font-size: 0.95rem;
   font-weight: 600;
 }
@@ -641,16 +577,16 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 1.15rem;
   font-weight: 800;
-  color: var(--accent-blue, #0ea5e9);
-  transition: all 0.3s ease;
+  color: var(--accent-blue);
+  transition: all 0.2s ease;
 }
 .tag-value.updated {
-  color: #0284c7;
-  transform: scale(1.1);
-  text-shadow: 0 0 12px rgba(14, 165, 233, 0.4);
+  color: var(--accent-neon);
+  transform: scale(1.15);
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
 }
 .no-tags {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-style: italic;
   text-align: center;
   padding: 24px 0;
